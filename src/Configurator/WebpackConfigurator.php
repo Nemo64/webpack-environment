@@ -14,6 +14,8 @@ use Symfony\Component\OptionsResolver\OptionsResolver;
 
 class WebpackConfigurator implements ConfigurableConfiguratorInterface
 {
+    private const JSON_FLAGS = JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT | JSON_FORCE_OBJECT;
+
     /**
      * @var array
      */
@@ -35,8 +37,8 @@ class WebpackConfigurator implements ConfigurableConfiguratorInterface
 
     public function configureOptions(ExecutionContext $context, OptionsResolver $resolver): void
     {
-        $resolver->setDefined('webpack-appjs-generated');
-        $resolver->setAllowedTypes('webpack-appjs-generated', 'bool');
+        $resolver->setDefault('webpack-generated', false);
+        $resolver->setAllowedTypes('webpack-generated', 'bool');
     }
 
     /**
@@ -79,29 +81,34 @@ class WebpackConfigurator implements ConfigurableConfiguratorInterface
             $gitignore->add('yarn-error.log');
         }
 
-        $packageJsonFilename = $context->getPath('package.json');
-        if (!file_exists($packageJsonFilename)) {
-            $this->createPackageJson($packageJsonFilename, $container, $context->getIo());
-        } else {
-            if (!preg_match('#@symfony/webpack-encore#', file_get_contents($packageJsonFilename))) {
-                $msg = "packages.json already exists but does not contain @symfony/webpack-encore.";
-                $msg .= "\nYou might need to manually configure it in order for the webpack-environment to work.";
-                $msg .= "\nLook at Nemo64\WebpackEnvironment\Configurator\WebpackConfigurator::createPackageJson.";
-                $context->getIo()->write($msg);
+        // everything below this line will only be executed once.
+
+        if ($container->getOption('webpack-generated')) {
+            return;
+        }
+
+        if ($this->createPackageJson($context, $container)) {
+            $context->info("Created <info>package.json</info>.");
+        } else if (!preg_match('#@symfony/webpack-encore#', file_get_contents($context->getPath('package.json')))) {
+            $msg = "packages.json already exists but does not contain @symfony/webpack-encore.";
+            $msg .= "\nYou might need to manually configure it in order for the webpack-environment to work.";
+            $msg .= "\nLook at Nemo64\WebpackEnvironment\Configurator\WebpackConfigurator::createPackageJson.";
+            $context->warn($msg);
+        }
+
+        if ($this->createWebpackFile($context, $container)) {
+            $context->info("Created <info>webpack.config.js</info>");
+
+            if ($this->createPostCssFile($context, $container)) {
+                $context->info("Created <info>postcss.config.js</info>");
             }
         }
 
-        $webpackFilename = $context->getPath('webpack.config.js');
-        if (!file_exists($webpackFilename)) {
-            $this->createWebpackFile($webpackFilename, $container, $context->getIo());
+        if ($this->createAppJs($context, $container)) {
+            $context->warn("There is now an <info>app.js</info> in your project root. Adjust it as needed.");
         }
 
-        $appJsFilename = $context->getPath('app.js');
-        if (!file_exists($appJsFilename) && !$container->getOption('webpack-appjs-generated')) {
-            $this->createAppJs($appJsFilename, $container);
-            $container->setOption('webpack-appjs-generated', true);
-            $context->getIo()->write("There is now an <info>app.js</info> in your project root. Adjust it as needed.");
-        }
+        $container->setOption('webpack-generated', true);
     }
 
     private function getOptions(IOInterface $io)
@@ -110,25 +117,57 @@ class WebpackConfigurator implements ConfigurableConfiguratorInterface
             return $this->options;
         }
 
-        return $this->options = [
-            'enable-sass' => $io->askConfirmation("Enable sass support? (default yes): ")
+        $this->options = [
+            'bootstrap' => $bootstrap = $io->askConfirmation("Use Bootstrap? (default yes): "),
+            'jquery' => $bootstrap || $io->askConfirmation("Add jQuery? (default yes): "),
+            'enable-autoprefixer' => $bootstrap || $io->askConfirmation("Enable autoprefixer? (default yes): "),
+            'enable-sass' => $bootstrap || $io->askConfirmation("Enable sass support? (default yes): "),
         ];
+
+        $this->options['enable-postcss'] = $this->options['enable-autoprefixer'];
+
+        return $this->options;
     }
 
-    private function createPackageJson(string $filename, ConfiguratorContainer $container, IOInterface $io)
+    private function createPackageJson(ExecutionContext $context, ConfiguratorContainer $container): bool
     {
-        $options = $this->getOptions($io);
-        $devDependencies = [
-            "@symfony/webpack-encore" => "^0.17.0"
-        ];
+        $packageJson = $context->getPath('package.json');
+        if (file_exists($packageJson)) {
+            return false;
+        }
+
+        $options = $this->getOptions($context->getIo());
+        $devDependencies = ["@symfony/webpack-encore" => "^0.17.0"];
+        $dependencies = [];
+
+        if ($options['bootstrap']) {
+            $dependencies['bootstrap'] = '^4.1.1';
+            $dependencies['popper.js'] = '^1.14.3';
+        }
+
+        if ($options['jquery']) {
+            $dependencies['jquery'] = '^3.3.1';
+        }
+
+        if ($options['enable-postcss']) {
+            $devDependencies['postcss-loader'] = '^2.1.5';
+        }
+
+        if ($options['enable-autoprefixer']) {
+            $devDependencies['autoprefixer'] = '^7.0.1';
+        }
 
         if ($options['enable-sass']) {
             $devDependencies['node-sass'] = '^4.9.0';
             $devDependencies['sass-loader'] = '^7.0.1';
         }
 
-        file_put_contents($filename, json_encode([
+        ksort($devDependencies);
+        ksort($dependencies);
+
+        file_put_contents($packageJson, json_encode([
             "devDependencies" => $devDependencies,
+            "dependencies" => $dependencies,
             "license" => "UNLICENSED",
             "private" => true,
             "scripts" => [
@@ -136,14 +175,24 @@ class WebpackConfigurator implements ConfigurableConfiguratorInterface
                 "dev" => "encore dev",
                 "watch" => "encore dev --watch",
                 "build" => "encore production"
+            ],
+            "browserslist" => [
+                "defaults"
             ]
-        ], JSON_FORCE_OBJECT | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+        ], self::JSON_FLAGS));
+
+        return true;
     }
 
-    private function createWebpackFile(string $filename, ConfiguratorContainer $container, IOInterface $io)
+    private function createWebpackFile(ExecutionContext $context, ConfiguratorContainer $container): bool
     {
+        $webpackConfigFile = $context->getPath('webpack.config.js');
+        if (file_exists($webpackConfigFile)) {
+            return false;
+        }
+
         $documentRoot = $container->getOption('document-root');
-        $options = $this->getOptions($io);
+        $options = $this->getOptions($context->getIo());
 
         $encoreCalls = [
             "// the project directory where compiled assets will be stored",
@@ -161,20 +210,20 @@ class WebpackConfigurator implements ConfigurableConfiguratorInterface
             ".addEntry('app', './app.js')",
         ];
 
-        $encoreCalls[] = "";
-        if ($options['enable-sass']) {
-            $encoreCalls[] = ".enableSassLoader()";
-        } else {
-            $encoreCalls[] = "// uncomment if you use Sass/SCSS files";
-            $encoreCalls[] = "// .enableSassLoader()";
+        if ($options['jquery']) {
+            $encoreCalls[] = ".autoProvidejQuery()";
         }
 
-        $encoreCalls[] = "";
-        $encoreCalls[] = "// uncomment for legacy applications that require $/jQuery as a global variable";
-        $encoreCalls[] = "// .autoProvidejQuery()";
+        if ($options['enable-autoprefixer']) {
+            $encoreCalls[] = ".enablePostCssLoader()";
+        }
+
+        if ($options['enable-sass']) {
+            $encoreCalls[] = ".enableSassLoader()";
+        }
 
         $encoreCallString = implode("\n    ", $encoreCalls);
-        file_put_contents($filename, <<<WEBPACK_CONFIG
+        file_put_contents($webpackConfigFile, <<<WEBPACK_CONFIG
 let Encore = require('@symfony/webpack-encore');
 
 Encore
@@ -184,11 +233,43 @@ Encore
 module.exports = Encore.getWebpackConfig();
 WEBPACK_CONFIG
         );
+
+        return true;
     }
 
-    private function createAppJs(string $filename, ConfiguratorContainer $container)
+    private function createPostCssFile(ExecutionContext $context, ConfiguratorContainer $container): bool
     {
-        file_put_contents($filename, <<<JavaScript
+        $postCss = $context->getPath('postcss.config.js');
+        if (file_exists($postCss)) {
+            return false;
+        }
+
+        $options = $this->getOptions($context->getIo());
+        if (!$options['enable-postcss']) {
+            return false;
+        }
+
+        $configuration = [
+            'plugins' => []
+        ];
+
+        if ($options['enable-autoprefixer']) {
+            $configuration['plugins']['autoprefixer'] = [];
+        }
+
+        file_put_contents($postCss, 'module.exports = ' . json_encode($configuration, self::JSON_FLAGS) . ';');
+
+        return true;
+    }
+
+    private function createAppJs(ExecutionContext $context, ConfiguratorContainer $container): bool
+    {
+        $appJs = $context->getPath('app.js');
+        if (file_exists($appJs)) {
+            return false;
+        }
+
+        file_put_contents($appJs, <<<JavaScript
 
 function requireAll(r) {
     r.keys().forEach(r);
@@ -199,5 +280,7 @@ function requireAll(r) {
 
 JavaScript
         );
+
+        return true;
     }
 }

@@ -3,6 +3,7 @@
 namespace Nemo64\WebpackEnvironment\Configurator;
 
 
+use Composer\IO\IOInterface;
 use Nemo64\Environment\Configurator\ConfigurableConfiguratorInterface;
 use Nemo64\Environment\Configurator\DockerConfigurator;
 use Nemo64\Environment\Configurator\GitignoreConfigurator;
@@ -13,6 +14,10 @@ use Symfony\Component\OptionsResolver\OptionsResolver;
 
 class WebpackConfigurator implements ConfigurableConfiguratorInterface
 {
+    /**
+     * @var array
+     */
+    private $options;
 
     /**
      * A list of other generators that are configured by this generator.
@@ -76,7 +81,7 @@ class WebpackConfigurator implements ConfigurableConfiguratorInterface
 
         $packageJsonFilename = $context->getPath('package.json');
         if (!file_exists($packageJsonFilename)) {
-            $this->createPackageJson($packageJsonFilename, $container);
+            $this->createPackageJson($packageJsonFilename, $container, $context->getIo());
         } else {
             if (!preg_match('#@symfony/webpack-encore#', file_get_contents($packageJsonFilename))) {
                 $msg = "packages.json already exists but does not contain @symfony/webpack-encore.";
@@ -88,7 +93,7 @@ class WebpackConfigurator implements ConfigurableConfiguratorInterface
 
         $webpackFilename = $context->getPath('webpack.config.js');
         if (!file_exists($webpackFilename)) {
-            $this->createWebpackFile($webpackFilename, $container);
+            $this->createWebpackFile($webpackFilename, $container, $context->getIo());
         }
 
         $appJsFilename = $context->getPath('app.js');
@@ -99,12 +104,31 @@ class WebpackConfigurator implements ConfigurableConfiguratorInterface
         }
     }
 
-    private function createPackageJson(string $filename, ConfiguratorContainer $container)
+    private function getOptions(IOInterface $io)
     {
+        if ($this->options !== null) {
+            return $this->options;
+        }
+
+        return $this->options = [
+            'enable-sass' => $io->askConfirmation("Enable sass support? (default yes): ")
+        ];
+    }
+
+    private function createPackageJson(string $filename, ConfiguratorContainer $container, IOInterface $io)
+    {
+        $options = $this->getOptions($io);
+        $devDependencies = [
+            "@symfony/webpack-encore" => "^0.17.0"
+        ];
+
+        if ($options['enable-sass']) {
+            $devDependencies['node-sass'] = '^4.9.0';
+            $devDependencies['sass-loader'] = '^7.0.1';
+        }
+
         file_put_contents($filename, json_encode([
-            "devDependencies" => [
-                "@symfony/webpack-encore" => "^0.17.0"
-            ],
+            "devDependencies" => $devDependencies,
             "license" => "UNLICENSED",
             "private" => true,
             "scripts" => [
@@ -116,32 +140,45 @@ class WebpackConfigurator implements ConfigurableConfiguratorInterface
         ], JSON_FORCE_OBJECT | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
     }
 
-    private function createWebpackFile(string $filename, ConfiguratorContainer $container)
+    private function createWebpackFile(string $filename, ConfiguratorContainer $container, IOInterface $io)
     {
         $documentRoot = $container->getOption('document-root');
+        $options = $this->getOptions($io);
+
+        $encoreCalls = [
+            "// the project directory where compiled assets will be stored",
+            ".setOutputPath('$documentRoot/build/')",
+            "// the public path used by the web server to access the previous directory",
+            ".setPublicPath('/build')",
+            ".cleanupOutputBeforeBuild()",
+            ".enableSourceMaps(!Encore.isProduction())",
+            "// uncomment to create hashed filenames (e.g. app.abc123.css)",
+            "// .enableVersioning(Encore.isProduction())",
+            "",
+            "// uncomment to define the assets of the project",
+            "// .addEntry('js/app', './assets/js/app.js')",
+            "// .addStyleEntry('css/app', './assets/css/app.scss')",
+            ".addEntry('app', './app.js')",
+        ];
+
+        $encoreCalls[] = "";
+        if ($options['enable-sass']) {
+            $encoreCalls[] = ".enableSassLoader()";
+        } else {
+            $encoreCalls[] = "// uncomment if you use Sass/SCSS files";
+            $encoreCalls[] = "// .enableSassLoader()";
+        }
+
+        $encoreCalls[] = "";
+        $encoreCalls[] = "// uncomment for legacy applications that require $/jQuery as a global variable";
+        $encoreCalls[] = "// .autoProvidejQuery()";
+
+        $encoreCallString = implode("\n    ", $encoreCalls);
         file_put_contents($filename, <<<WEBPACK_CONFIG
 let Encore = require('@symfony/webpack-encore');
 
 Encore
-    // the project directory where compiled assets will be stored
-    .setOutputPath('$documentRoot/build/')
-    // the public path used by the web server to access the previous directory
-    .setPublicPath('/build')
-    .cleanupOutputBeforeBuild()
-    .enableSourceMaps(!Encore.isProduction())
-    // uncomment to create hashed filenames (e.g. app.abc123.css)
-    .enableVersioning(Encore.isProduction())
-
-    // uncomment to define the assets of the project
-    // .addEntry('js/app', './assets/js/app.js')
-    // .addStyleEntry('css/app', './assets/css/app.scss')
-    .addEntry('app', './app.js')
-
-    // uncomment if you use Sass/SCSS files
-    // .enableSassLoader()
-
-    // uncomment for legacy applications that require $/jQuery as a global variable
-    // .autoProvidejQuery()
+    $encoreCallString
 ;
 
 module.exports = Encore.getWebpackConfig();
@@ -158,7 +195,7 @@ function requireAll(r) {
 }
 
 // uncomment and adjust as needed
-//requireAll(require.context('./templates', true, /\.(js|css|scss)$/));
+//requireAll(require.context('./templates', true, /\.(js|css|scss|sass)$/i));
 
 JavaScript
         );

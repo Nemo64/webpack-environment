@@ -1,0 +1,39 @@
+{
+    "repositories": {
+        "env": {
+            "type": "path",
+            "url": "../environment/"
+        }
+    },
+    "name": "nemo64/webpack-environment",
+    "authors": [
+        {
+            "name": "Marco Pfeiffer",
+            "email": "git@marco.zone",
+            "homepage": "https://www.marco.zone",
+            "role": "Developer"
+        }
+    ],
+    "require": {
+        "php": "7.1.* || 7.2.*",
+        "composer-plugin-api": "^1.1",
+        "nemo64/environment": "dev-master"
+    },
+    "require-dev": {
+        "composer/composer": "^1.3",
+        "phpunit/phpunit": "^7.0",
+        "mikey179/vfsStream": "^1.6"
+    },
+    "extra": {
+        "nemo64/environment": {
+            "classes": [
+                "Nemo64\\WebpackEnvironment\\Configurator\\WebpackConfigurator"
+            ]
+        }
+    },
+    "autoload": {
+        "psr-4": {
+            "Nemo64\\WebpackEnvironment\\": "src"
+        }
+    }
+}

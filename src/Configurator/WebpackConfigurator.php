@@ -62,7 +62,10 @@ class WebpackConfigurator implements ConfigurableConfiguratorInterface
 
         $docker->defineService('webpack', [
             'image' => 'node:carbon',
-            'command' => 'yarn run encore dev --watch',
+            'command' => 'yarn run encore dev-server --host 0.0.0.0 --port 9000',
+            'ports' => [
+                '9000:9000'
+            ],
             'volumes' => [
                 '.:/var/www:delegated',
                 '~/.cache/yarn:/usr/local/share/.cache/yarn'

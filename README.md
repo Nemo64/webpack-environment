@@ -11,6 +11,7 @@ There aren't any further local dependencies. Every node execution is run through
 ## How to install
 
 Just run `composer require --dev nemo64/webpack-environment`.
+You'll also need to implement the `manifest.json` ([read more](https://www.npmjs.com/package/webpack-manifest-plugin)).
 
 ## How it works
 
@@ -20,7 +21,9 @@ Webpack will be executed as a docker service.
 services:
   webpack:
     image: 'node:carbon'
-    command: 'yarn run encore dev --watch'
+    command: 'yarn run encore dev-server --host 0.0.0.0 --port 8080'
+    ports:
+      8080:8080
     volumes:
       - '.:/var/www'
     working_dir: /var/www

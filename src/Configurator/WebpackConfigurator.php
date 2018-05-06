@@ -64,7 +64,8 @@ class WebpackConfigurator implements ConfigurableConfiguratorInterface
             'image' => 'node:carbon',
             'command' => 'yarn run encore dev --watch',
             'volumes' => [
-                '.:/var/www'
+                '.:/var/www:delegated',
+                '~/.cache/yarn:/usr/local/share/.cache/yarn'
             ],
             'working_dir' => '/var/www',
         ]);

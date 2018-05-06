@@ -4,6 +4,10 @@ This is an extension to [nemo64/environment] which adds a default webpack file a
 
 There aren't any further local dependencies. Every node execution is run through docker.
 
+## How to install
+
+Just run `composer require --dev nemo64/webpack-environment`.
+
 ## How it works
 
 Webpack will be executed as a docker service.

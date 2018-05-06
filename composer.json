@@ -1,5 +1,6 @@
 {
     "name": "nemo64/webpack-environment",
+    "license": "MIT",
     "authors": [
         {
             "name": "Marco Pfeiffer",

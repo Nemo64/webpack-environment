@@ -1,6 +1,6 @@
-[![Latest Stable Version](https://poser.pugx.org/nemo64/webpack-environment/v/stable)](https://packagist.org/packages/nemo64/environment)
-[![Total Downloads](https://poser.pugx.org/nemo64/webpack-environment/downloads)](https://packagist.org/packages/nemo64/environment)
-[![License](https://poser.pugx.org/nemo64/webpack-environment/license)](https://packagist.org/packages/nemo64/environment)
+[![Latest Stable Version](https://poser.pugx.org/nemo64/webpack-environment/v/stable)](https://packagist.org/packages/nemo64/webpack-environment)
+[![Total Downloads](https://poser.pugx.org/nemo64/webpack-environment/downloads)](https://packagist.org/packages/nemo64/webpack-environment)
+[![License](https://poser.pugx.org/nemo64/webpack-environment/license)](https://packagist.org/packages/nemo64/webpack-environment)
 
 # Webpack environment
 

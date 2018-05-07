@@ -10,8 +10,8 @@ There aren't any further local dependencies. Every node execution is run through
 
 ## How to install
 
-Just run `composer require --dev nemo64/webpack-environment`.
-You'll also need to implement the `manifest.json` ([read more](https://www.npmjs.com/package/webpack-manifest-plugin)).
+Just run `composer require --dev nemo64/webpack-environment` and the files are there.
+You'll also need to implement the `manifest.json` ([read more](https://www.npmjs.com/package/webpack-manifest-plugin)) in your application.
 
 ## How it works
 

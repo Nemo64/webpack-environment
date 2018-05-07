@@ -38,7 +38,7 @@ node_modules: docker-compose.log $(wildcard package.* yarn.*)
 
 ## Example file
 
-If you want to experiment with webpack just use this `index.php file`
+If you want to experiment with webpack just use this `index.php` file.
 
 ```php
 <?php $manifest = json_decode(file_get_contents(__DIR__ . '/build/manifest.json'), true); ?>

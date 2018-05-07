@@ -36,4 +36,29 @@ node_modules: docker-compose.log $(wildcard package.* yarn.*)
 	docker-compose run --rm --no-deps webpack yarn install
 ```
 
+## Example file
+
+If you want to experiment with webpack just use this `index.php file`
+
+```php
+<?php $manifest = json_decode(file_get_contents(__DIR__ . '/build/manifest.json'), true); ?>
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Example page</title>
+        <link rel="stylesheet" href="<?php echo htmlspecialchars($manifest['build/app.css']) ?>">
+    </head>
+    <body>
+        <div class="container">
+            <div class="row">
+                <div class="col">col1</div>
+                <div class="col">col2</div>
+                <div class="col">col3</div>
+            </div>
+        </div>
+        <script src="<?php echo htmlspecialchars($manifest['build/app.js']) ?>"></script>
+    </body>
+</html>
+```
+
 [nemo64/environment]: https://github.com/Nemo64/environment
